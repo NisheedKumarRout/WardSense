@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospital Bed & Resource Allocation — AI System (SDG 3)</title>
+  <meta name="description" content="An AI-driven hospital bed allocation system using Constraint Satisfaction Problems and DFS Backtracking, visualised on HTML5 Canvas." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* =====================================================================
+       DESIGN SYSTEM — dark-mode neon medical dashboard
+       ===================================================================== */
+    :root {
+      --bg-deep:     #080c18;
+      --bg-card:     #0d1226;
+      --bg-panel:    #111828;
+      --border:      #1e2d4a;
+      --neon-cyan:   #00e5ff;
+      --neon-green:  #00ff8c;
+      --neon-orange: #ff7b00;
+      --neon-red:    #ff2d55;
+      --neon-purple: #bf5fff;
+      --neon-blue:   #4da6ff;
+      --text-pri:    #e8f0fe;
+      --text-sec:    #7b8db0;
+      --text-muted:  #3a4a6a;
+
+      /* Patient condition colours (also used for orbs) */
+      --col-infectious: #ff2d55;
+      --col-critical:   #4da6ff;
+      --col-general:    #00ff8c;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-deep);
+      color: var(--text-pri);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #0d1226 0%, #080c18 100%);
+    }
+    .logo {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--neon-cyan);
+      text-shadow: 0 0 12px rgba(0,229,255,0.5);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-icon { font-size: 1.4rem; }
+    .sdg-badge {
+      background: linear-gradient(135deg, #224f00, #00ff8c22);
+      border: 1px solid var(--neon-green);
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--neon-green);
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
+    .header-tags {
+      display: flex;
+      gap: 8px;
+      font-size: 0.68rem;
+      color: var(--text-sec);
+    }
+    .tag {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 3px 10px;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Main layout ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      height: calc(100vh - 65px);
+    }
+
+    /* ── Canvas area ── */
+    .canvas-section {
+      padding: 22px 22px 14px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      overflow: hidden;
+    }
+
+    .canvas-wrapper {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #07090f;
+      overflow: hidden;
+      position: relative;
+      min-height: 0;
+      box-shadow: 0 0 0 1px #1a2540, 0 8px 40px rgba(0,0,0,0.6), inset 0 0 60px rgba(0,229,255,0.02);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── Controls bar ── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 22px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .btn:hover::after { opacity: 0.06; }
+    .btn:active { transform: scale(0.97); }
+
+    #btn-run {
+      background: linear-gradient(135deg, #003d54, #006680);
+      color: var(--neon-cyan);
+      border: 1px solid var(--neon-cyan);
+      box-shadow: 0 0 18px rgba(0,229,255,0.3), inset 0 0 10px rgba(0,229,255,0.05);
+    }
+    #btn-run:hover {
+      box-shadow: 0 0 30px rgba(0,229,255,0.55), inset 0 0 20px rgba(0,229,255,0.1);
+    }
+    #btn-run:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #btn-reset {
+      background: var(--bg-panel);
+      color: var(--text-sec);
+      border: 1px solid var(--border);
+    }
+    #btn-reset:hover { border-color: #3a4a6a; color: var(--text-pri); }
+
+    .speed-control {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.72rem;
+      color: var(--text-sec);
+    }
+    .speed-control label { font-family: 'Orbitron', sans-serif; font-size: 0.65rem; letter-spacing: 0.8px; }
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 110px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--neon-cyan);
+      box-shadow: 0 0 8px rgba(0,229,255,0.8);
+      cursor: pointer;
+    }
+
+    .status-text {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-left: auto;
+    }
+    .status-text.running { color: var(--neon-cyan); animation: pulse-text 1.2s infinite; }
+    .status-text.success { color: var(--neon-green); }
+    .status-text.fail    { color: var(--neon-red); }
+
+    @keyframes pulse-text { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ── Side panel ── */
+    .side-panel {
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-card);
+    }
+
+    .panel-header {
+      padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--border);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--neon-cyan);
+      box-shadow: 0 0 6px var(--neon-cyan);
+    }
+
+    /* Patient cards */
+    .patients-section {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .patient-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .patient-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--card-accent, var(--border));
+      border-radius: 0 2px 2px 0;
+    }
+    .patient-card.assigned {
+      border-color: var(--card-accent);
+      box-shadow: 0 0 12px rgba(0,255,140,0.1);
+    }
+    .patient-orb-mini {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      filter: brightness(1.1);
+    }
+    .patient-info { flex: 1; min-width: 0; }
+    .patient-name {
+      font-size: 0.78rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .patient-condition {
+      font-size: 0.62rem;
+      padding: 2px 7px;
+      border-radius: 8px;
+      display: inline-block;
+      margin-top: 3px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+    }
+    .cond-infectious { background:#3a0818; color:var(--col-infectious); }
+    .cond-critical   { background:#0a1f3a; color:var(--col-critical); }
+    .cond-general    { background:#002d1a; color:var(--col-general); }
+
+    .patient-status {
+      font-size: 0.62rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .patient-status.ok { color: var(--neon-green); }
+    .patient-status.err { color: var(--neon-red); }
+
+    /* Algorithm log */
+    .log-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #algo-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 10px 12px;
+      font-family: 'Inter', monospace;
+      font-size: 0.65rem;
+      line-height: 1.8;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    #algo-log::-webkit-scrollbar { width: 4px; }
+    #algo-log::-webkit-scrollbar-track { background: transparent; }
+    #algo-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .log-entry {
+      padding: 3px 8px;
+      border-radius: 5px;
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .log-assign   { background: rgba(0,255,140,0.07); color: var(--neon-green); }
+    .log-reject   { background: rgba(255,45,85,0.07);  color: var(--neon-red); }
+    .log-backtrack{ background: rgba(255,123,0,0.07);  color: var(--neon-orange); }
+    .log-info     { color: var(--text-muted); }
+    .log-success  { background: rgba(0,229,255,0.08);  color: var(--neon-cyan); font-weight: 600; }
+    .log-icon { flex-shrink: 0; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 0 0 0 4px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.65rem;
+      color: var(--text-sec);
+    }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Scrollbar global */
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+
+    /* ── Configure button ── */
+    #btn-config {
+      background: var(--bg-panel);
+      color: var(--neon-purple);
+      border: 1px solid var(--neon-purple);
+      box-shadow: 0 0 12px rgba(191,95,255,0.2);
+    }
+    #btn-config:hover { box-shadow: 0 0 22px rgba(191,95,255,0.45); }
+
+    /* ── Modal overlay ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(4,6,16,0.88);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--neon-purple);
+      border-radius: 20px;
+      box-shadow: 0 0 60px rgba(191,95,255,0.25), 0 24px 80px rgba(0,0,0,0.7);
+      width: min(860px, 96vw);
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-head {
+      padding: 22px 26px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .modal-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--neon-purple);
+      text-shadow: 0 0 12px rgba(191,95,255,0.5);
+    }
+    .modal-close {
+      width: 30px; height: 30px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      color: var(--text-sec);
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .modal-close:hover { border-color: var(--neon-red); color: var(--neon-red); }
+
+    .modal-body {
+      padding: 24px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: 1fr 260px;
+      gap: 24px;
+    }
+
+    /* Patient editor */
+    .config-section-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .config-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .patient-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.78rem;
+    }
+    .patient-table th {
+      text-align: left;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      padding: 0 8px 8px;
+      text-transform: uppercase;
+    }
+    .patient-table td {
+      padding: 5px 6px;
+    }
+    .patient-table tr:hover td { background: rgba(255,255,255,0.02); border-radius: 6px; }
+
+    .cfg-input {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-pri);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.78rem;
+      padding: 6px 10px;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .cfg-input:focus { border-color: var(--neon-purple); box-shadow: 0 0 8px rgba(191,95,255,0.2); }
+
+    .cond-select {
+      appearance: none;
+      cursor: pointer;
+      padding-right: 24px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237b8db0'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+    }
+    .cond-select option { background: #111828; }
+    .cond-infectious-sel { color: var(--col-infectious) !important; border-color: rgba(255,45,85,0.4) !important; }
+    .cond-critical-sel   { color: var(--col-critical)   !important; border-color: rgba(77,166,255,0.4) !important; }
+    .cond-general-sel    { color: var(--col-general)    !important; border-color: rgba(0,255,140,0.4) !important; }
+
+    .btn-icon {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-sec);
+      width: 28px; height: 28px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-icon.del:hover { border-color: var(--neon-red); color: var(--neon-red); background: rgba(255,45,85,0.08); }
+    .btn-icon.add { border-color: var(--neon-green); color: var(--neon-green); width: auto; padding: 0 12px; gap: 5px; font-size: 0.72rem; font-family: Orbitron,sans-serif; letter-spacing: 0.5px; }
+    .btn-icon.add:hover { background: rgba(0,255,140,0.08); }
+
+    /* Ward capacity */
+    .ward-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ward-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .ward-card-head {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      margin-bottom: 10px;
+    }
+    .ward-card-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .ward-card-row label { font-size: 0.72rem; color: var(--text-sec); flex: 1; }
+    .ward-spinner {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text-pri);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.8rem;
+      width: 56px;
+      text-align: center;
+      padding: 5px 4px;
+      outline: none;
+    }
+    .ward-spinner:focus { border-color: var(--neon-purple); }
+
+    .modal-foot {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .modal-hint { font-size: 0.68rem; color: var(--text-muted); }
+    .btn-apply {
+      background: linear-gradient(135deg, #2a0645, #4b0d80);
+      color: var(--neon-purple);
+      border: 1px solid var(--neon-purple);
+      box-shadow: 0 0 18px rgba(191,95,255,0.35);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 10px;
+      padding: 10px 26px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-apply:hover { box-shadow: 0 0 30px rgba(191,95,255,0.6); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     HEADER
+     ═══════════════════════════════════════════════ -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🏥</span>
+    Hospital Bed &amp; Resource Allocation
+  </div>
+  <div class="sdg-badge">SDG 3 · Good Health &amp; Well-being</div>
+  <div class="header-tags">
+    <span class="tag">CSP</span>
+    <span class="tag">DFS Backtracking</span>
+    <span class="tag">Intelligent Agent</span>
+    <span class="tag">Canvas</span>
+  </div>
+</header>
+
+<!-- ═══════════════════════════════════════════════
+     MAIN LAYOUT
+     ═══════════════════════════════════════════════ -->
+<div class="main-grid">
+
+  <!-- Left: Canvas + Controls -->
+  <div class="canvas-section">
+    <div class="controls">
+      <button id="btn-run"   class="btn">▶ Run AI Allocation</button>
+      <button id="btn-reset" class="btn">↺ Reset</button>
+      <button id="btn-config" class="btn">⚙ Configure</button>
+      <div class="speed-control">
+        <label>SPEED</label>
+        <input type="range" id="speed-slider" min="50" max="1200" value="500" step="50" />
+        <span id="speed-label">500 ms</span>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--col-infectious)"></div>Infectious</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--col-critical)"></div>Critical</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--col-general)"></div>General</div>
+      </div>
+      <span class="status-text" id="status-text">READY</span>
+    </div>
+
+    <div class="canvas-wrapper" id="canvas-wrapper">
+      <canvas id="main-canvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Right: Side Panel -->
+  <div class="side-panel">
+    <!-- Patient roster -->
+    <div class="panel-header"><div class="panel-dot"></div>Patient Queue</div>
+    <div class="patients-section" id="patient-cards"><!-- populated by JS --></div>
+
+    <!-- Algorithm log -->
+    <div class="log-section">
+      <div class="panel-header" style="border-top:1px solid var(--border); border-bottom:1px solid var(--border);">
+        <div class="panel-dot" style="background:var(--neon-orange); box-shadow:0 0 6px var(--neon-orange)"></div>
+        Algorithm Log
+      </div>
+      <div id="algo-log"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     CONFIGURE MODAL
+     ═══════════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title-label">
+
+    <div class="modal-head">
+      <span class="modal-title" id="modal-title-label">⚙ Configure Patients &amp; Wards</span>
+      <button class="modal-close" id="modal-close" title="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+
+      <!-- LEFT: Patient editor -->
+      <div>
+        <div class="config-section-title">Patients</div>
+        <table class="patient-table" id="patient-table">
+          <thead>
+            <tr>
+              <th style="width:36px">#</th>
+              <th>Name</th>
+              <th style="width:150px">Condition</th>
+              <th style="width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="patient-tbody">
+            <!-- populated by JS -->
+          </tbody>
+        </table>
+        <div style="margin-top:10px">
+          <button class="btn-icon add" id="btn-add-patient">+ Add Patient</button>
+        </div>
+        <p style="margin-top:14px; font-size:0.65rem; color:var(--text-muted)">
+          ⚠ The solver needs at least 1 bed per condition type present in the patient list.
+        </p>
+      </div>
+
+      <!-- RIGHT: Ward capacity -->
+      <div>
+        <div class="config-section-title">Ward Capacity</div>
+        <div class="ward-cards">
+          <div class="ward-card" style="border-color:rgba(0,229,255,0.3)">
+            <div class="ward-card-head" style="color:var(--neon-cyan)">🏥 Intensive Care Unit (ICU)</div>
+            <div class="ward-card-row">
+              <label>Number of beds</label>
+              <input type="number" class="ward-spinner" id="cap-icu" min="1" max="8" value="2" />
+            </div>
+          </div>
+          <div class="ward-card" style="border-color:rgba(255,123,0,0.3)">
+            <div class="ward-card-head" style="color:var(--neon-orange)">⚠ Isolation Ward</div>
+            <div class="ward-card-row">
+              <label>Number of beds</label>
+              <input type="number" class="ward-spinner" id="cap-iso" min="1" max="8" value="2" />
+            </div>
+          </div>
+          <div class="ward-card" style="border-color:rgba(0,255,140,0.3)">
+            <div class="ward-card-head" style="color:var(--neon-green)">🌿 General Ward</div>
+            <div class="ward-card-row">
+              <label>Number of beds</label>
+              <input type="number" class="ward-spinner" id="cap-gen" min="1" max="8" value="2" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.modal-body -->
+
+    <div class="modal-foot">
+      <span class="modal-hint" id="config-hint">Changes take effect immediately on Apply.</span>
+      <button class="btn-apply" id="btn-apply">✔ Apply Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   HOSPITAL BED & RESOURCE ALLOCATION SYSTEM
+   =====================================================================
+   AI CONCEPTS IMPLEMENTED:
+   1. Constraint Satisfaction Problem (CSP)
+       – Variables  : patients (what we need to assign)
+       – Domains    : beds filtered by valid room type
+       – Constraints: zone compatibility rules
+   2. Uninformed Search — Depth-First Search with Backtracking
+       – backtrack() is a classic recursive DFS on the assignment tree
+       – Each recursion level = one patient to assign
+       – Backtracking = pruning invalid branches and trying the next node
+   3. Intelligent Agent (AllocationAgent)
+       – Perceives: current assignment state + constraint rules
+       – Decides  : which bed to attempt next (DFS order)
+       – Acts     : pushes steps onto a step queue for animation replay
+   ===================================================================== */
+
+  /* ------------------------------------------------------------------
+     1. CSP — VARIABLES (Patients)
+     Each patient is a CSP variable. The "value" we seek is a bed ID.
+     Condition drives which room zone is valid for this patient.
+  ------------------------------------------------------------------ */
+  /* Using `let` so the Configure modal can rebuild these arrays at runtime */
+  let PATIENTS = [
+    { id: 'P1', name: 'Alice Chen',    condition: 'Critical',   color: '#4da6ff', glow: 'rgba(77,166,255,0.7)'  },
+    { id: 'P2', name: 'Bob Marley',    condition: 'Infectious', color: '#ff2d55', glow: 'rgba(255,45,85,0.7)'   },
+    { id: 'P3', name: 'Carol Weiss',   condition: 'General',    color: '#00ff8c', glow: 'rgba(0,255,140,0.7)'   },
+    { id: 'P4', name: 'David Osei',    condition: 'Critical',   color: '#4da6ff', glow: 'rgba(77,166,255,0.7)'  },
+    { id: 'P5', name: 'Eva Torres',    condition: 'Infectious', color: '#ff2d55', glow: 'rgba(255,45,85,0.7)'   },
+    { id: 'P6', name: 'Frank Liu',     condition: 'General',    color: '#00ff8c', glow: 'rgba(0,255,140,0.7)'   },
+  ];
+
+  /* ------------------------------------------------------------------
+     1. CSP — DOMAINS (Beds)
+     Each bed belongs to exactly one zone. The zone restricts which
+     patients can legally occupy it — this is the CSP domain constraint.
+     Also uses `let` so ward capacity can be changed via Configure modal.
+  ------------------------------------------------------------------ */
+  let BEDS = [
+    { id: 'B1', label: 'ICU-1',   zone: 'ICU'       },
+    { id: 'B2', label: 'ICU-2',   zone: 'ICU'       },
+    { id: 'B3', label: 'ISO-1',   zone: 'Isolation'  },
+    { id: 'B4', label: 'ISO-2',   zone: 'Isolation'  },
+    { id: 'B5', label: 'GEN-1',   zone: 'General'    },
+    { id: 'B6', label: 'GEN-2',   zone: 'General'    },
+  ];
+
+  /* ── Colour map for patient conditions (used when building new orbs) ── */
+  const CONDITION_COLORS = {
+    Critical:   { color: '#4da6ff', glow: 'rgba(77,166,255,0.7)'  },
+    Infectious: { color: '#ff2d55', glow: 'rgba(255,45,85,0.7)'   },
+    General:    { color: '#00ff8c', glow: 'rgba(0,255,140,0.7)'   },
+  };
+
+  /* ------------------------------------------------------------------
+     1. CSP — CONSTRAINT CHECKER
+     This is the heart of the CSP. Returns true only if assigning
+     `patient` to `bed` satisfies ALL domain constraints.
+     
+     Rules enforced:
+       • Critical   → must go to ICU        (needs life support)
+       • Infectious → must go to Isolation   (prevent outbreak)
+       • General    → must go to General     (not near infectious)
+  ------------------------------------------------------------------ */
+  function checkConstraints(patient, bed) {
+    if (patient.condition === 'Critical')   return bed.zone === 'ICU';
+    if (patient.condition === 'Infectious') return bed.zone === 'Isolation';
+    if (patient.condition === 'General')    return bed.zone === 'General';
+    return false; // unknown condition type — reject by default
+  }
+
+  /* ------------------------------------------------------------------
+     2. INTELLIGENT AGENT — AllocationAgent
+     
+     A Rational Agent (Russell & Norvig definition):
+       • PERCEPT  : reads the current assignment map and bed availability
+       • GOAL     : assign every patient to a valid, unique bed
+       • ACTIONS  : ASSIGN, REJECT, BACKTRACK (recorded as step objects)
+       • POLICY   : DFS with constraint pruning (= smart backtracking)
+     
+     The agent does NOT animate. It pre-computes a stepQueue — a full
+     trace of every decision — which the animation engine replays later.
+  ------------------------------------------------------------------ */
+  class AllocationAgent {
+    constructor(patients, beds) {
+      this.patients   = patients;          // CSP variables
+      this.beds       = beds;              // CSP domains
+      this.assignment = {};                // variable→value map  { patientId: bedId }
+      this.occupiedBeds = new Set();       // tracks which beds are taken
+      this.stepQueue  = [];                // animation replay queue
+      this.solutionFound = false;
+    }
+
+    /* perceive() — returns the agent's current view of the environment */
+    perceive() {
+      return {
+        assigned: Object.keys(this.assignment).length,
+        total:    this.patients.length,
+        occupied: Array.from(this.occupiedBeds),
+      };
+    }
+
+    /* solve() — entry point; kicks off the DFS tree search */
+    solve() {
+      this.assignment    = {};
+      this.occupiedBeds  = new Set();
+      this.stepQueue     = [];
+      this.solutionFound = false;
+      this.stepQueue.push({ type: 'INFO', msg: 'AllocationAgent: starting DFS solver…' });
+      this.backtrack(0);  // begin DFS at depth 0 (first patient)
+      return this.stepQueue;
+    }
+
+    /* ----------------------------------------------------------------
+       backtrack(depth) — RECURSIVE DFS SEARCH
+       ----------------------------------------------------------------
+       HOW THIS MAPS TO DEPTH-FIRST SEARCH (for the professor):
+       
+       ┌─ backtrack(depth) ───────────────────────────────────────────┐
+       │  • depth = current level in the DFS tree                     │
+       │  • Each level handles one CSP variable (patient)             │
+       │  • We iterate over all beds = trying each CHILD NODE         │
+       │  • If constraints pass → go DEEPER  (recursive call)         │
+       │  • If constraints fail → PRUNE this branch (continue loop)   │
+       │  • If we exhaust all beds → BACKTRACK (return false)         │
+       │  • Base case: depth == patients.length → SOLUTION FOUND!     │
+       └──────────────────────────────────────────────────────────────┘
+       
+       Time complexity: O(n! / pruned branches) where n = num patients.
+       Without pruning this would be O(n!) — constraints make it fast.
+    ---------------------------------------------------------------- */
+    backtrack(depth) {
+      // ── BASE CASE ── All patients assigned → solution found!
+      if (depth === this.patients.length) {
+        this.solutionFound = true;
+        this.stepQueue.push({ type: 'SUCCESS', msg: '✔ All patients successfully allocated!' });
+        return true;
+      }
+
+      const patient = this.patients[depth];  // current CSP variable
+
+      this.stepQueue.push({
+        type: 'INFO',
+        msg: `DFS depth ${depth}: attempting to place ${patient.name} (${patient.condition})`
+      });
+
+      // ── EXPAND NODE ── Try every bed in the domain
+      for (let i = 0; i < this.beds.length; i++) {
+        const bed = this.beds[i];
+
+        // Skip beds that are already occupied (one patient per bed)
+        if (this.occupiedBeds.has(bed.id)) continue;
+
+        // ── CONSTRAINT CHECK ── Does this assignment satisfy all rules?
+        const valid = checkConstraints(patient, bed);
+
+        if (valid) {
+          // ── ASSIGN ── Valid placement — record it and go deeper
+          this.assignment[patient.id] = bed.id;
+          this.occupiedBeds.add(bed.id);
+          this.stepQueue.push({
+            type:    'ASSIGN',
+            patient: patient,
+            bed:     bed,
+            msg:     `✔ ASSIGN ${patient.name} → ${bed.label}`
+          });
+
+          // ── RECURSE ── Go one level deeper in the DFS tree
+          const result = this.backtrack(depth + 1);
+          if (result) return true;  // propagate solution upward
+
+          // If we reach here, the deeper search failed — UNDO assignment
+          delete this.assignment[patient.id];
+          this.occupiedBeds.delete(bed.id);
+          this.stepQueue.push({
+            type:    'BACKTRACK',
+            patient: patient,
+            bed:     bed,
+            msg:     `↩ BACKTRACK: undoing ${patient.name} from ${bed.label}`
+          });
+
+        } else {
+          // ── REJECT ── Constraint violated — prune this branch
+          // This is the key DFS pruning step: we do NOT recurse here.
+          this.stepQueue.push({
+            type:    'REJECT',
+            patient: patient,
+            bed:     bed,
+            msg:     `✘ REJECT ${patient.name} (${patient.condition}) → ${bed.label} (${bed.zone}) [constraint violation]`
+          });
+        }
+      }
+
+      // ── BACKTRACK ── No valid bed found for this patient at this depth
+      return false;
+    }
+  }
+
+  /* ==================================================================
+     3. CANVAS ENGINE — rendering & animation
+     ================================================================== */
+  const canvas  = document.getElementById('main-canvas');
+  const ctx     = canvas.getContext('2d');
+  const wrapper = document.getElementById('canvas-wrapper');
+
+  /* ── Layout constants (recalculated on resize) ── */
+  let W, H;              // canvas pixel dimensions
+  let QUEUE_Y;           // y-centre of the triage queue row
+  let ZONES = [];        // { label, x, y, w, h, color, glowColor, beds[] }
+  let BED_SLOTS = {};    // bedId → { cx, cy, w, h }
+  let QUEUE_SLOTS = {};  // patientId → { cx, cy }
+
+  /* ── Orb physics state ── */
+  // Each orb is a moving representation of a patient on the canvas.
+  let orbs = {};  // patientId → { cx, cy, targetX, targetY, vx, vy, state, flashBed, flashTimer }
+
+  /* ── Step-queue playback state ── */
+  let stepQueue    = [];
+  let stepIndex    = 0;
+  let stepTimer    = null;
+  let isRunning    = false;
+  let stepDelay    = 500;   // ms between steps (controlled by slider)
+
+  /* ── Bed highlight state ── */
+  let bedHighlights = {}; // bedId → { color, alpha, timer }
+
+  /* ------------------------------------------------------------------
+     RESIZE — fit canvas to wrapper pixel size (HiDPI aware)
+  ------------------------------------------------------------------ */
+  function resizeCanvas() {
+    const rect = wrapper.getBoundingClientRect();
+    const dpr  = window.devicePixelRatio || 1;
+    canvas.width  = rect.width  * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    W = rect.width;
+    H = rect.height;
+    buildLayout();
+    resetOrbPositions();
+  }
+
+  /* ------------------------------------------------------------------
+     LAYOUT — compute zone rectangles and bed slot centres
+  ------------------------------------------------------------------ */
+  function buildLayout() {
+    const margin     = 18;
+    const queueH     = 90;
+    const zoneTop    = queueH + margin + 14;
+    const zoneH      = H - zoneTop - margin;
+    const totalW     = W - margin * 2;
+    const zoneW      = (totalW - margin * 2) / 3;
+
+    QUEUE_Y = queueH / 2;
+
+    ZONES = [
+      {
+        id: 'ICU',
+        label: 'INTENSIVE CARE UNIT',
+        x: margin,
+        y: zoneTop,
+        w: zoneW,
+        h: zoneH,
+        color: '#00e5ff',
+        glow:  'rgba(0,229,255,0.25)',
+        fills: 'rgba(0,229,255,0.04)',
+        beds: BEDS.filter(b => b.zone === 'ICU'),
+      },
+      {
+        id: 'Isolation',
+        label: 'ISOLATION WARD',
+        x: margin + zoneW + margin,
+        y: zoneTop,
+        w: zoneW,
+        h: zoneH,
+        color: '#ff7b00',
+        glow:  'rgba(255,123,0,0.25)',
+        fills: 'rgba(255,123,0,0.04)',
+        beds: BEDS.filter(b => b.zone === 'Isolation'),
+      },
+      {
+        id: 'General',
+        label: 'GENERAL WARD',
+        x: margin + (zoneW + margin) * 2,
+        y: zoneTop,
+        w: zoneW,
+        h: zoneH,
+        color: '#00ff8c',
+        glow:  'rgba(0,255,140,0.25)',
+        fills: 'rgba(0,255,140,0.04)',
+        beds: BEDS.filter(b => b.zone === 'General'),
+      },
+    ];
+
+    /* Place bed slots inside each zone (2 per zone, stacked vertically) */
+    BED_SLOTS = {};
+    for (const zone of ZONES) {
+      const bedH  = (zone.h - 60) / zone.beds.length;
+      for (let i = 0; i < zone.beds.length; i++) {
+        const bed = zone.beds[i];
+        const bx  = zone.x + 20;
+        const by  = zone.y + 50 + i * bedH + 10;
+        const bw  = zone.w - 40;
+        const bh  = bedH - 20;
+        BED_SLOTS[bed.id] = {
+          cx: bx + bw / 2,
+          cy: by + bh / 2,
+          x: bx, y: by, w: bw, h: bh,
+        };
+      }
+    }
+
+    /* Place patient queue slots evenly across the top strip */
+    QUEUE_SLOTS = {};
+    const qSlotW = (W - 40) / PATIENTS.length;
+    for (let i = 0; i < PATIENTS.length; i++) {
+      QUEUE_SLOTS[PATIENTS[i].id] = {
+        cx: 40 + qSlotW * i + qSlotW / 2,
+        cy: QUEUE_Y,
+      };
+    }
+  }
+
+  /* ------------------------------------------------------------------
+     ORB INITIALISATION — place orbs in triage queue
+  ------------------------------------------------------------------ */
+  function resetOrbPositions() {
+    orbs = {};
+    for (const p of PATIENTS) {
+      const slot = QUEUE_SLOTS[p.id];
+      orbs[p.id] = {
+        cx: slot.cx, cy: slot.cy,          // current position
+        targetX: slot.cx, targetY: slot.cy, // destination
+        homeX: slot.cx,   homeY: slot.cy,   // queue home position
+        vx: 0, vy: 0,                       // physics velocity
+        state: 'idle',                       // idle | moving | bouncing | placed
+        flashBed: null,                      // bed being flashed on reject
+        flashTimer: 0,
+        trail: [],                           // motion trail points
+      };
+    }
+    bedHighlights = {};
+  }
+
+  /* ------------------------------------------------------------------
+     DRAW — main render function (called every animation frame)
+  ------------------------------------------------------------------ */
+  function draw(timestamp) {
+    ctx.clearRect(0, 0, W, H);
+
+    /* subtle grid background */
+    drawGrid();
+
+    /* Triage queue label + bracket */
+    drawQueueArea();
+
+    /* Hospital zones and bed slots */
+    for (const zone of ZONES) drawZone(zone);
+
+    /* Bed highlight effects (flash red/green) */
+    updateBedHighlights();
+
+    /* Orb physics update + draw */
+    for (const p of PATIENTS) {
+      updateOrb(p);
+      drawOrb(p, timestamp);
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  /* ── Background dot grid ── */
+  function drawGrid() {
+    ctx.save();
+    ctx.fillStyle = 'rgba(30,45,74,0.35)';
+    const spacing = 28;
+    for (let x = 0; x < W; x += spacing) {
+      for (let y = 0; y < H; y += spacing) {
+        ctx.beginPath();
+        ctx.arc(x, y, 1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ── Triage Queue area ── */
+  function drawQueueArea() {
+    const margin = 18;
+    const queueH = 80;
+    ctx.save();
+
+    /* background strip */
+    const grad = ctx.createLinearGradient(0, 0, 0, queueH);
+    grad.addColorStop(0, 'rgba(0,229,255,0.06)');
+    grad.addColorStop(1, 'rgba(0,229,255,0.01)');
+    ctx.fillStyle = grad;
+    roundRect(ctx, margin, 8, W - margin * 2, queueH, 12);
+    ctx.fill();
+
+    /* dashed border */
+    ctx.strokeStyle = 'rgba(0,229,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([6, 5]);
+    roundRect(ctx, margin, 8, W - margin * 2, queueH, 12);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    /* label */
+    ctx.font = '600 10px Orbitron, sans-serif';
+    ctx.fillStyle = 'rgba(0,229,255,0.55)';
+    ctx.letterSpacing = '1px';
+    ctx.fillText('⬡ TRIAGE QUEUE', margin + 12, 24);
+
+    ctx.restore();
+  }
+
+  /* ── Zone rectangle ── */
+  function drawZone(zone) {
+    ctx.save();
+
+    /* filled background */
+    ctx.fillStyle = zone.fills;
+    roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 14);
+    ctx.fill();
+
+    /* glowing border */
+    ctx.shadowColor  = zone.glow;
+    ctx.shadowBlur   = 18;
+    ctx.strokeStyle  = zone.color;
+    ctx.lineWidth    = 1.5;
+    roundRect(ctx, zone.x, zone.y, zone.w, zone.h, 14);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    /* zone label */
+    ctx.font      = '700 9px Orbitron, sans-serif';
+    ctx.fillStyle = zone.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(zone.label, zone.x + zone.w / 2, zone.y + 22);
+
+    /* ECG‑style decorative line under label */
+    drawECGLine(zone.x + 20, zone.y + 30, zone.w - 40, zone.color);
+
+    ctx.restore();
+
+    /* Bed slots inside zone */
+    for (const bed of zone.beds) drawBed(bed, zone);
+  }
+
+  /* ── Decorative ECG squiggle ── */
+  function drawECGLine(startX, y, w, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 1;
+    ctx.globalAlpha = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(startX, y);
+    for (let i = 0; i < w; i++) {
+      const t = i / w;
+      const spike = Math.sin(t * Math.PI * 8) * (t > 0.3 && t < 0.38 ? 5 : 0.5);
+      ctx.lineTo(startX + i, y + spike);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ── Individual Bed Slot ── */
+  function drawBed(bed, zone) {
+    const slot = BED_SLOTS[bed.id];
+    const hl   = bedHighlights[bed.id];
+    ctx.save();
+
+    /* base fill */
+    ctx.fillStyle = 'rgba(10,14,26,0.7)';
+    roundRect(ctx, slot.x, slot.y, slot.w, slot.h, 10);
+    ctx.fill();
+
+    /* border + optional highlight */
+    if (hl && hl.alpha > 0) {
+      ctx.shadowColor = hl.color;
+      ctx.shadowBlur  = 20 * hl.alpha;
+      ctx.strokeStyle = hl.color;
+      ctx.globalAlpha = 0.6 + hl.alpha * 0.4;
+    } else {
+      ctx.strokeStyle = 'rgba(30,45,74,0.8)';
+    }
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, slot.x, slot.y, slot.w, slot.h, 10);
+    ctx.stroke();
+    ctx.shadowBlur  = 0;
+    ctx.globalAlpha = 1;
+
+    /* bed icon */
+    ctx.font      = '14px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛏', slot.cx, slot.cy + 4);
+
+    /* bed label */
+    ctx.font      = '500 9px Orbitron, sans-serif';
+    ctx.fillStyle = 'rgba(120,140,170,0.7)';
+    ctx.fillText(bed.label, slot.cx, slot.cy + slot.h / 2 - 7);
+
+    ctx.restore();
+  }
+
+  /* ── Bed highlight update (fade out over time) ── */
+  function updateBedHighlights() {
+    for (const bedId in bedHighlights) {
+      const hl = bedHighlights[bedId];
+      hl.timer -= 0.025;
+      hl.alpha  = Math.max(0, hl.timer);
+      if (hl.alpha <= 0) delete bedHighlights[bedId];
+    }
+  }
+
+  /* ── Flash bed (called by animation step playback) ── */
+  function flashBed(bedId, color) {
+    bedHighlights[bedId] = { color, alpha: 1, timer: 1 };
+  }
+
+  /* ------------------------------------------------------------------
+     ORB PHYSICS — smooth lerp movement + bounce physics on REJECT
+  ------------------------------------------------------------------ */
+  function updateOrb(patient) {
+    const orb = orbs[patient.id];
+    if (!orb) return;
+
+    if (orb.state === 'bouncing') {
+      // Physics: gravity pull + friction (simulates orb being ejected)
+      orb.vy += 0.4;   // gravity
+      orb.vx *= 0.97;  // air friction
+      orb.cx += orb.vx;
+      orb.cy += orb.vy;
+
+      // Store trail for motion blur
+      orb.trail.push({ x: orb.cx, y: orb.cy, a: 0.4 });
+      if (orb.trail.length > 12) orb.trail.shift();
+
+      // Check if we've reached the home position (within threshold)
+      const dxHome = orb.homeX - orb.cx;
+      const dyHome = orb.homeY - orb.cy;
+      const distHome = Math.sqrt(dxHome * dxHome + dyHome * dyHome);
+
+      if (distHome < 8 && Math.abs(orb.vy) < 3) {
+        // Snap home, end bounce
+        orb.cx = orb.homeX;
+        orb.cy = orb.homeY;
+        orb.vx = 0; orb.vy = 0;
+        orb.state = 'idle';
+        orb.trail = [];
+      } else if (orb.cy > orb.homeY + 6) {
+        // Passed home Y — start pulling back (magnetic home effect)
+        orb.vy -= 0.9;
+        orb.vx += dxHome * 0.08;
+      }
+    } else if (orb.state === 'moving' || orb.state === 'returning') {
+      // Smooth lerp toward target position
+      const speed = orb.state === 'returning' ? 0.14 : 0.1;
+      orb.cx += (orb.targetX - orb.cx) * speed;
+      orb.cy += (orb.targetY - orb.cy) * speed;
+
+      // Trail for motion effect
+      orb.trail.push({ x: orb.cx, y: orb.cy, a: 0.3 });
+      if (orb.trail.length > 8) orb.trail.shift();
+
+      const dx = orb.targetX - orb.cx;
+      const dy = orb.targetY - orb.cy;
+      if (Math.sqrt(dx * dx + dy * dy) < 2) {
+        orb.cx = orb.targetX;
+        orb.cy = orb.targetY;
+        orb.trail = [];
+
+        if (orb.state === 'returning') {
+          orb.state = 'idle';
+        } else {
+          orb.state = 'arrived';  // animation step handler will read this
+        }
+      }
+    }
+  }
+
+  /* ── Draw a single patient orb ── */
+  function drawOrb(patient, timestamp) {
+    const orb = orbs[patient.id];
+    if (!orb) return;
+
+    // Draw motion trail
+    for (let i = 0; i < orb.trail.length; i++) {
+      const t   = orb.trail[i];
+      const pct = i / orb.trail.length;
+      ctx.save();
+      ctx.globalAlpha = t.a * pct * 0.5;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, 10 * pct, 0, Math.PI * 2);
+      ctx.fillStyle = patient.color;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    const r = 14;  // orb radius
+    const pulse = orb.state === 'placed' ? 0 : Math.sin(timestamp * 0.004 + patient.id.charCodeAt(1)) * 2;
+
+    ctx.save();
+
+    // Outer glow
+    const glowR = r + 10 + pulse;
+    const glowGrad = ctx.createRadialGradient(orb.cx, orb.cy, 0, orb.cx, orb.cy, glowR);
+    glowGrad.addColorStop(0,   patient.glow.replace('0.7', orb.state === 'placed' ? '0.6' : '0.3'));
+    glowGrad.addColorStop(1,   'transparent');
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(orb.cx, orb.cy, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Main orb body
+    const bodyGrad = ctx.createRadialGradient(orb.cx - 4, orb.cy - 4, 1, orb.cx, orb.cy, r);
+    bodyGrad.addColorStop(0, lightenColor(patient.color, 0.35));
+    bodyGrad.addColorStop(1, patient.color);
+    ctx.beginPath();
+    ctx.arc(orb.cx, orb.cy, r + pulse * 0.5, 0, Math.PI * 2);
+    ctx.fillStyle  = bodyGrad;
+    ctx.shadowColor = patient.glow;
+    ctx.shadowBlur  = 14;
+    ctx.fill();
+
+    // Specular highlight
+    ctx.beginPath();
+    ctx.arc(orb.cx - 4, orb.cy - 5, r * 0.35, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.shadowBlur = 0;
+    ctx.fill();
+
+    // Patient initial label
+    ctx.fillStyle  = 'rgba(0,0,0,0.75)';
+    ctx.font       = '600 9px Inter, sans-serif';
+    ctx.textAlign  = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(patient.name.split(' ').map(w => w[0]).join(''), orb.cx, orb.cy + 1);
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.restore();
+  }
+
+  /* ── Utility: lighten a hex colour ── */
+  function lightenColor(hex, amount) {
+    const r = parseInt(hex.slice(1,3),16);
+    const g = parseInt(hex.slice(3,5),16);
+    const b = parseInt(hex.slice(5,7),16);
+    const lr = Math.min(255, r + (255-r)*amount);
+    const lg = Math.min(255, g + (255-g)*amount);
+    const lb = Math.min(255, b + (255-b)*amount);
+    return `rgb(${lr|0},${lg|0},${lb|0})`;
+  }
+
+  /* ── Utility: rounded rectangle path ── */
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  /* ==================================================================
+     4. STEP PLAYBACK — drives the animation from the stepQueue
+     ================================================================== */
+  function playNextStep() {
+    if (stepIndex >= stepQueue.length) {
+      // All steps played — allocation complete
+      isRunning = false;
+      document.getElementById('btn-run').disabled   = false;
+      document.getElementById('btn-reset').disabled = false;
+      setStatus('success', 'ALLOCATION COMPLETE');
+      return;
+    }
+
+    const step = stepQueue[stepIndex++];
+    addLog(step);
+
+    if (step.type === 'INFO' || step.type === 'SUCCESS') {
+      // Non-visual steps: just log and continue immediately
+      scheduleNext(80);
+      return;
+    }
+
+    const orb     = orbs[step.patient.id];
+    const bedSlot = BED_SLOTS[step.bed.id];
+
+    if (step.type === 'ASSIGN') {
+      // Move orb to bed
+      orb.state   = 'moving';
+      orb.targetX = bedSlot.cx;
+      orb.targetY = bedSlot.cy;
+
+      // When orb arrives, flash green and continue
+      waitForArrival(orb, () => {
+        orb.state = 'placed';
+        flashBed(step.bed.id, '#00ff8c');
+        updatePatientCard(step.patient.id, 'ASSIGNED → ' + step.bed.label, 'ok');
+        scheduleNext(stepDelay);
+      });
+
+    } else if (step.type === 'REJECT') {
+      // Move orb toward bed, then violently bounce it back (DFS pruning visual)
+      orb.state   = 'moving';
+      orb.targetX = bedSlot.cx;
+      orb.targetY = bedSlot.cy;
+
+      waitForArrival(orb, () => {
+        // BOUNCE PHYSICS: launch orb upward and back toward home
+        flashBed(step.bed.id, '#ff2d55');
+        orb.state = 'bouncing';
+        const dx = orb.homeX - orb.cx;
+        const dy = orb.homeY - orb.cy;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        // Ejection velocity — upward spike then home-bound
+        orb.vx = (dx / dist) * 9;
+        orb.vy = -12;   // upward kick
+        updatePatientCard(step.patient.id, 'REJECTED', 'err');
+        scheduleNext(stepDelay * 1.3);
+      });
+
+    } else if (step.type === 'BACKTRACK') {
+      // Return orb from bed back to queue (undo)
+      orb.state   = 'returning';
+      orb.targetX = orb.homeX;
+      orb.targetY = orb.homeY;
+      flashBed(step.bed.id, '#ff7b00');
+      updatePatientCard(step.patient.id, 'BACKTRACKING…', 'err');
+      waitForArrival(orb, () => {
+        orb.state = 'idle';
+        updatePatientCard(step.patient.id, 'In Queue', '');
+        scheduleNext(stepDelay * 0.8);
+      });
+    }
+  }
+
+  /* Poll until orb reaches target, then call callback */
+  function waitForArrival(orb, cb) {
+    const check = () => {
+      if (orb.state === 'arrived' || orb.state === 'idle') {
+        if (orb.state === 'arrived') orb.state = 'placed';
+        cb();
+      } else {
+        requestAnimationFrame(check);
+      }
+    };
+    requestAnimationFrame(check);
+  }
+
+  /* Schedule the next step after a delay */
+  function scheduleNext(delay) {
+    if (!isRunning) return;
+    stepTimer = setTimeout(playNextStep, delay);
+  }
+
+  /* ==================================================================
+     5. UI — Controls, log, and patient cards
+     ================================================================== */
+  function addLog(step) {
+    const log = document.getElementById('algo-log');
+    const el  = document.createElement('div');
+    el.classList.add('log-entry');
+
+    const icons = { ASSIGN:'✔', REJECT:'✘', BACKTRACK:'↩', INFO:'·', SUCCESS:'★' };
+    const types = { ASSIGN:'log-assign', REJECT:'log-reject', BACKTRACK:'log-backtrack',
+                    INFO:'log-info', SUCCESS:'log-success' };
+
+    el.classList.add(types[step.type] || 'log-info');
+    el.innerHTML = `<span class="log-icon">${icons[step.type]||'·'}</span><span>${step.msg}</span>`;
+    log.appendChild(el);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function setStatus(cls, text) {
+    const el = document.getElementById('status-text');
+    el.className = 'status-text ' + cls;
+    el.textContent = text;
+  }
+
+  function updatePatientCard(patientId, statusText, statusClass) {
+    const card = document.getElementById('card-' + patientId);
+    if (!card) return;
+    const statusEl = card.querySelector('.patient-status');
+    statusEl.textContent  = statusText;
+    statusEl.className    = 'patient-status ' + statusClass;
+    if (statusClass === 'ok') card.classList.add('assigned');
+    else card.classList.remove('assigned');
+  }
+
+  function buildPatientCards() {
+    const container = document.getElementById('patient-cards');
+    container.innerHTML = '';
+    for (const p of PATIENTS) {
+      const accent = p.condition === 'Critical' ? 'var(--col-critical)'
+                   : p.condition === 'Infectious' ? 'var(--col-infectious)'
+                   : 'var(--col-general)';
+      const condClass = 'cond-' + p.condition.toLowerCase();
+      container.innerHTML += `
+        <div class="patient-card" id="card-${p.id}" style="--card-accent:${accent}">
+          <div class="patient-orb-mini" style="background:${p.color}; box-shadow:0 0 8px ${p.color}66"></div>
+          <div class="patient-info">
+            <div class="patient-name">${p.name}</div>
+            <span class="patient-condition ${condClass}">${p.condition}</span>
+          </div>
+          <span class="patient-status" id="status-${p.id}">Queue</span>
+        </div>`;
+    }
+  }
+
+  /* ==================================================================
+     6. CONTROLS — Run, Reset & Configure
+     ================================================================== */
+  document.getElementById('btn-run').addEventListener('click', () => {
+    if (isRunning) return;
+
+    // Validate: we need at least 1 bed per condition present
+    const conditionsNeeded = new Set(PATIENTS.map(p => p.condition));
+    const zonesAvail = new Set(BEDS.map(b => b.zone));
+    // Map CSP zone names to condition names for check
+    const condZoneMap = { Critical:'ICU', Infectious:'Isolation', General:'General' };
+    for (const cond of conditionsNeeded) {
+      if (!zonesAvail.has(condZoneMap[cond])) {
+        setStatus('fail', 'CONFIG ERROR');
+        addLog({ type:'REJECT', msg:`✘ No ${condZoneMap[cond]} beds for a ${cond} patient. Fix in Configure.` });
+        return;
+      }
+    }
+
+    // Instantiate the AllocationAgent and run the solver
+    const agent = new AllocationAgent(PATIENTS, BEDS);
+
+    // Expose agent on window for professor inspection in DevTools
+    window.agent = agent;
+
+    stepQueue = agent.solve();
+    stepIndex = 0;
+    isRunning = true;
+
+    document.getElementById('btn-run').disabled   = true;
+    document.getElementById('btn-reset').disabled = true;
+    document.getElementById('btn-config').disabled = true;
+    document.getElementById('algo-log').innerHTML = '';
+    setStatus('running', 'ALLOCATING…');
+
+    // Reset all orbs to queue before starting playback
+    resetOrbPositions();
+    buildPatientCards();
+
+    scheduleNext(400);
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    clearTimeout(stepTimer);
+    isRunning   = false;
+    stepQueue   = [];
+    stepIndex   = 0;
+    bedHighlights = {};
+    resetOrbPositions();
+    buildPatientCards();
+    document.getElementById('algo-log').innerHTML = '';
+    document.getElementById('btn-run').disabled    = false;
+    document.getElementById('btn-reset').disabled  = false;
+    document.getElementById('btn-config').disabled = false;
+    setStatus('', 'READY');
+  });
+
+  const speedSlider = document.getElementById('speed-slider');
+  const speedLabel  = document.getElementById('speed-label');
+  speedSlider.addEventListener('input', () => {
+    stepDelay = parseInt(speedSlider.value);
+    speedLabel.textContent = stepDelay + ' ms';
+  });
+
+  /* ==================================================================
+     7. CONFIGURE MODAL
+     Lets the user edit patients (name + condition) and set ward
+     capacity (beds per zone). On Apply, it rebuilds PATIENTS and BEDS
+     then calls the same reset/rebuild pipeline used by the Reset button.
+     ================================================================== */
+  const overlay  = document.getElementById('modal-overlay');
+  const tbody    = document.getElementById('patient-tbody');
+
+  /* ── Open modal ── */
+  document.getElementById('btn-config').addEventListener('click', () => {
+    syncModalFromData();   // populate modal fields from current PATIENTS/BEDS
+    overlay.classList.add('open');
+  });
+
+  /* ── Close modal (X button or click backdrop) ── */
+  document.getElementById('modal-close').addEventListener('click', closeModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  function closeModal() { overlay.classList.remove('open'); }
+
+  /* ── Populate modal rows from current PATIENTS array ── */
+  function syncModalFromData() {
+    // Sync ward capacity spinners
+    document.getElementById('cap-icu').value = BEDS.filter(b => b.zone === 'ICU').length;
+    document.getElementById('cap-iso').value = BEDS.filter(b => b.zone === 'Isolation').length;
+    document.getElementById('cap-gen').value = BEDS.filter(b => b.zone === 'General').length;
+
+    // Sync patient rows
+    tbody.innerHTML = '';
+    PATIENTS.forEach((p, i) => addPatientRow(i + 1, p.name, p.condition));
+  }
+
+  /* ── Add a patient row to the editor table ── */
+  function addPatientRow(num, name = '', condition = 'General') {
+    const tr = document.createElement('tr');
+    const condClass = `cond-${condition.toLowerCase()}-sel`;
+    tr.innerHTML = `
+      <td style="color:var(--text-muted);font-size:0.7rem;text-align:center">${tbody.children.length + 1}</td>
+      <td><input class="cfg-input" type="text" placeholder="Patient name" value="${name}" /></td>
+      <td>
+        <select class="cfg-input cond-select ${condClass}">
+          <option value="Critical"   ${condition==='Critical'   ? 'selected' : ''}>🔵 Critical</option>
+          <option value="Infectious" ${condition==='Infectious' ? 'selected' : ''}>🔴 Infectious</option>
+          <option value="General"    ${condition==='General'    ? 'selected' : ''}>🟢 General</option>
+        </select>
+      </td>
+      <td><button class="btn-icon del" title="Remove">✕</button></td>`;
+
+    // Update row numbers after add/remove
+    tr.querySelector('.del').addEventListener('click', () => {
+      tr.remove();
+      reNumberRows();
+    });
+
+    // Update select colour class on change
+    tr.querySelector('select').addEventListener('change', function() {
+      this.className = `cfg-input cond-select cond-${this.value.toLowerCase()}-sel`;
+    });
+
+    tbody.appendChild(tr);
+  }
+
+  function reNumberRows() {
+    Array.from(tbody.rows).forEach((row, i) => {
+      row.cells[0].textContent = i + 1;
+    });
+  }
+
+  /* ── Add Patient button ── */
+  document.getElementById('btn-add-patient').addEventListener('click', () => {
+    addPatientRow(tbody.children.length + 1);
+  });
+
+  /* ── Apply Changes ── */
+  document.getElementById('btn-apply').addEventListener('click', () => {
+    const hint = document.getElementById('config-hint');
+
+    // Validate: at least 1 patient
+    const rows = Array.from(tbody.rows);
+    if (rows.length === 0) {
+      hint.style.color = 'var(--neon-red)';
+      hint.textContent = '⚠ Add at least one patient.';
+      return;
+    }
+
+    // Validate: no empty names
+    const hasEmpty = rows.some(r => r.cells[1].querySelector('input').value.trim() === '');
+    if (hasEmpty) {
+      hint.style.color = 'var(--neon-red)';
+      hint.textContent = '⚠ All patients must have a name.';
+      return;
+    }
+
+    // ── Rebuild PATIENTS (CSP Variables) ── 
+    PATIENTS = rows.map((row, i) => {
+      const name      = row.cells[1].querySelector('input').value.trim();
+      const condition = row.cells[2].querySelector('select').value;
+      const id        = `P${i + 1}`;
+      const cols      = CONDITION_COLORS[condition];
+      return { id, name, condition, color: cols.color, glow: cols.glow };
+    });
+
+    // ── Rebuild BEDS (CSP Domains) from ward capacity spinners ──
+    const capICU = Math.max(1, parseInt(document.getElementById('cap-icu').value) || 1);
+    const capISO = Math.max(1, parseInt(document.getElementById('cap-iso').value) || 1);
+    const capGEN = Math.max(1, parseInt(document.getElementById('cap-gen').value) || 1);
+
+    BEDS = [];
+    let bedNum = 1;
+    for (let i = 0; i < capICU; i++) BEDS.push({ id:`B${bedNum}`, label:`ICU-${i+1}`,  zone:'ICU',       bedNum: bedNum++ });
+    for (let i = 0; i < capISO; i++) BEDS.push({ id:`B${bedNum}`, label:`ISO-${i+1}`,  zone:'Isolation',  bedNum: bedNum++ });
+    for (let i = 0; i < capGEN; i++) BEDS.push({ id:`B${bedNum}`, label:`GEN-${i+1}`,  zone:'General',    bedNum: bedNum++ });
+
+    // ── Reset everything so the new config takes effect ──
+    clearTimeout(stepTimer);
+    isRunning     = false;
+    stepQueue     = [];
+    stepIndex     = 0;
+    bedHighlights = {};
+
+    // Rebuild canvas layout + orbs for new patient/bed count
+    resizeCanvas();
+    buildPatientCards();
+    document.getElementById('algo-log').innerHTML = '';
+    document.getElementById('btn-run').disabled    = false;
+    document.getElementById('btn-reset').disabled  = false;
+    document.getElementById('btn-config').disabled = false;
+    setStatus('', `READY · ${PATIENTS.length}pts / ${BEDS.length}beds`);
+
+    hint.style.color = 'var(--neon-green)';
+    hint.textContent = `✔ Applied! ${PATIENTS.length} patients, ${BEDS.length} beds configured.`;
+    setTimeout(() => {
+      hint.style.color = '';
+      hint.textContent = 'Changes take effect immediately on Apply.';
+      closeModal();
+    }, 1200);
+  });
+
+  /* ==================================================================
+     8. BOOT — initialise everything
+     ================================================================== */
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+  });
+
+  buildPatientCards();
+  resizeCanvas();
+  requestAnimationFrame(draw);  // start the render loop
+</script>
+</body>
+</html>
