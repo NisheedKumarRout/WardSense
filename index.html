@@ -1552,15 +1552,20 @@
   document.getElementById('btn-run').addEventListener('click', () => {
     if (isRunning) return;
 
-    // Validate: we need at least 1 bed per condition present
-    const conditionsNeeded = new Set(PATIENTS.map(p => p.condition));
-    const zonesAvail = new Set(BEDS.map(b => b.zone));
-    // Map CSP zone names to condition names for check
+    // Validate: enough beds per condition type (count check, not just existence)
     const condZoneMap = { Critical:'ICU', Infectious:'Isolation', General:'General' };
+    const conditionsNeeded = [...new Set(PATIENTS.map(p => p.condition))];
     for (const cond of conditionsNeeded) {
-      if (!zonesAvail.has(condZoneMap[cond])) {
+      const needed = PATIENTS.filter(p => p.condition === cond).length;
+      const avail  = BEDS.filter(b => b.zone === condZoneMap[cond]).length;
+      if (avail === 0) {
         setStatus('fail', 'CONFIG ERROR');
         addLog({ type:'REJECT', msg:`✘ No ${condZoneMap[cond]} beds for a ${cond} patient. Fix in Configure.` });
+        return;
+      }
+      if (needed > avail) {
+        setStatus('fail', 'NO SOLUTION');
+        addLog({ type:'REJECT', msg:`✘ IMPOSSIBLE: ${needed} ${cond} patient(s) but only ${avail} ${condZoneMap[cond]} bed(s). Add more beds in Configure.` });
         return;
       }
     }
@@ -1572,6 +1577,14 @@
     window.agent = agent;
 
     stepQueue = agent.solve();
+
+    // Guard: if solver found no solution, abort before starting animation
+    if (!agent.solutionFound) {
+      setStatus('fail', 'NO SOLUTION');
+      addLog({ type:'REJECT', msg:'✘ Solver exhausted all options — no valid allocation exists. Adjust bed counts in Configure.' });
+      return;
+    }
+
     stepIndex = 0;
     isRunning = true;
 
